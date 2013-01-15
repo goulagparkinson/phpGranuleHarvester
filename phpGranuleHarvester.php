@@ -21,6 +21,7 @@
 *******************************************************************************/
 
 require_once("functions.inc.php");
+require_once("productDateTimeHandler.inc.php");
 
 if (php_sapi_name() != 'cli') die('[FATAL] Must run from command line !');
 error_reporting(E_ALL | E_STRICT);
@@ -52,10 +53,15 @@ foreach($compress_suffix_array as $value) {
 }
 $compress_suffix_regex = "($|\.(".$compress_suffix_regex.")$)";
 $regex_ignore = $config_array['regexToIgnore'];
-$regex_array = array();
+$regex_product_array = array();
+$regex_datetime_array = array();
 foreach($config_array['products'] as $key => $product_id) {
   $product_regex = $config_array[$product_id]['productRegex'].$compress_suffix_regex;
-  $regex_array[$product_regex] = $product_id;
+  $regex_product_array[$product_regex] = $product_id;
+  if (array_key_exists('datetimeRegex',$config_array[$product_id])) {
+    $datetime_regex = $config_array[$product_id]['datetimeRegex'];
+    $regex_datetime_array[$product_id] = $datetime_regex;
+  }
 }
 
 $shortopts  = "d:o:n:";
@@ -119,7 +125,7 @@ foreach($file_array as $path => &$file_info_array) {
   if (preg_match("/".$regex_ignore."/",$file_info_array['name'], $matches))
     continue;
   $product_matched = false;
-  foreach($regex_array as $regex => $product_id) {
+  foreach($regex_product_array as $regex => $product_id) {
     if (preg_match("/".$regex."/",$file_info_array['name'], $matches)) {
       $product_matched = true;
       //echo "[DEBUG] ".$file_info_array['name']." => ".$product_id."\n";
@@ -131,10 +137,38 @@ foreach($file_array as $path => &$file_info_array) {
     if (fwrite($output_unmatched_handle, $file_info_array['path']."\n") === FALSE) {
       echo "[ERROR] Unable to write into file ($unmatched_filename)\n";
     }
-    echo "[WARNING] ".$file_info_array['name']." => UNKNOW\n";    
+    //echo "[WARNING] ".$file_info_array['name']." => UNKNOW\n";    
   }
 }
 fclose($output_unmatched_handle);
+
+$duplicate_array = detect_duplicate($file_array);
+if (count($duplicate_array)) {
+  echo "[INFO] There's some duplicate files :\n\n";
+  foreach($duplicate_array as $filekey => &$fileset_array) {
+    echo "$filekey :\n";
+    foreach($fileset_array as $file_info) {
+      echo "\t=> ".$file_info['path']."\n";
+    }
+  }
+}
+
+foreach($file_array as $path => &$file_info) {
+  if (!isset($file_info['product_id_regex_matching']))
+    continue;
+  $product_id = $file_info['product_id_regex_matching'];
+  $filename = $file_info['name'];
+  $filepath = $file_info['path'];
+  echo "filename   = $filename\n";
+  echo "filepath   = $filepath\n";
+  echo "product_id = $product_id\n";
+  $functionHandlerName = "datetime_handler_".str_replace(array('-','.'),"_",$product_id);
+
+
+  call_user_func($functionHandlerName, $file_info);
+
+  echo "\n";
+}
 
 //print_r($file_array);
 

@@ -84,4 +84,43 @@ function recurse_xml(&$simple_xml_element_dir, &$parent_dirpath,
   return $file_counter;
 }
 
+function detect_duplicate(&$file_array) {
+  $index_file_array = array();
+  $duplicate_array = array();
+  foreach($file_array as $path => &$file_info) {
+    if (!isset($file_info['product_id_regex_matching']))
+      continue;
+    $filename = $file_info['name'];
+    $product_id = $file_info['product_id_regex_matching'];
+    $filekey = $product_id.":".$filename;
+    if (!array_key_exists($filekey, $index_file_array)) {
+      $index_file_array[$filekey] = array();
+      $index_file_array[$filekey] = $file_info;
+    } else {
+      if (!array_key_exists($filekey, $duplicate_array)) {
+        $duplicate_array[$filekey][] = $index_file_array[$filekey];
+      }
+      $duplicate_array[$filekey][] = $file_info;
+    }    
+  }
+  return $duplicate_array;
+}
+
+function gunzip_dataset($input_filename, &$output_filename) {
+    $output_filename = tempnam(sys_get_temp_dir(), 'pgh_gunzip_');
+    $command = "zcat ".$input_filename." > ".$output_filename;
+    $exec_output = array();
+    $exec_return_val = 0;
+    exec($command, $output, $return_val);
+    return true;
+}
+
+function ncdump_xml($input_filename, &$output_filename) {
+    $output_filename = tempnam(sys_get_temp_dir(), 'pgh_ncdump_');
+    $command = "ncdump -htx ".$input_filename." > ".$output_filename;
+    $exec_output = array();
+    $exec_return_val = 0;
+    exec($command, $output, $return_val);
+    return true;
+}
 ?>
