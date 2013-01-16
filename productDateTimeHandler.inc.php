@@ -249,8 +249,8 @@ function datetime_handler_IFR_L4_SSTfnd_ODYSSEA_MED_002(&$file_info) {
 function datetime_handler_JPL_L4UHfnd_GLOB_MUR(&$file_info) {
   bunzip_dataset_partial($file_info['path'],$nc_filename,8192);
   ncdump_xml($nc_filename, $xml_filename);
-//  debug("[DEBUG] nc_filename = $nc_filename\n");
-//  debug("[DEBUG] xml_filename = $xml_filename\n");
+  //debug("[DEBUG] nc_filename = $nc_filename\n");
+  //debug("[DEBUG] xml_filename = $xml_filename\n");
 
   $xml = new SimpleXMLElement(str_replace('xmlns=', 'ns=', file_get_contents($xml_filename)));
   unlink($nc_filename);
@@ -261,7 +261,11 @@ function datetime_handler_JPL_L4UHfnd_GLOB_MUR(&$file_info) {
   $stop_date_str = (string)$xml->xpath('/netcdf/attribute[@name="stop_date"]')[0]['value'];
   $stop_time_str = (string)$xml->xpath('/netcdf/attribute[@name="stop_time"]')[0]['value'];
   $start_datetime_str = $start_date_str." ".substr($start_time_str,0,-4);
-  $stop_datetime_str =  $stop_date_str." 23:59:59";
+
+  $stop_datetime = date_create($start_datetime_str);
+  $stop_datetime->modify('+1 day -1 sec');
+  $stop_datetime_ts = $stop_datetime->getTimestamp();
+  $stop_datetime_str = strftime("%F %T", $stop_datetime_ts);
 
   fill_datetime_fileinfo($start_datetime_str, $stop_datetime_str, $file_info);
 }
