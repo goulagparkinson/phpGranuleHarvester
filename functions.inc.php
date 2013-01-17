@@ -1,21 +1,21 @@
 <?php
 /*******************************************************************************
 
-    This file is part of "phpGranuleHarvester" - Copyright 2013 Goulag PARKINSON
-    Author(s) : Goulag PARKINSON <goulag.parkinson@gmail.com>
+  This file is part of "phpGranuleHarvester" - Copyright 2013 Goulag PARKINSON
+  Author(s) : Goulag PARKINSON <goulag.parkinson@gmail.com>
 
-    "phpGranuleHarvester" is free software: you can redistribute it and/or
-    modify it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    any later version.
+  "phpGranuleHarvester" is free software: you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  any later version.
 
-    "phpGranuleHarvester" is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+  "phpGranuleHarvester" is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License along with
-    "phpGranuleHarvester".  If not, see <http://www.gnu.org/licenses/>.
+  You should have received a copy of the GNU General Public License along with
+  "phpGranuleHarvester".  If not, see <http://www.gnu.org/licenses/>.
 
 *******************************************************************************/
 
@@ -55,7 +55,8 @@ function friendly_error_type($type)  {
   return "UNKNOW"; 
 }
 
-function error_handler($errno, $errstr, $errfile, $errline) {
+/*
+ function error_handler($errno, $errstr, $errfile, $errline) {
   global $is_piped;
   if (!(error_reporting() & $errno)) {
     // This error code is not included in error_reporting
@@ -77,6 +78,7 @@ function error_handler($errno, $errstr, $errfile, $errline) {
   //if ($errno==E_USER_ERROR) exit(1);
   return true;
 }
+*/
 
 function trigger_success($msg) {
   global $is_piped;
