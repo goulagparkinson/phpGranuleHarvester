@@ -105,7 +105,7 @@ function info( $msg = '' ) {
 
 function success( $msg = '' ) {
   global $config_array;
-  if ($config_array['verbose']) {
+  if ($config_array['debug']) {
     \cli\line("%G[SUCCESS] ".$msg."%n");
   }
 }
@@ -116,15 +116,21 @@ function version() {
   \cli\line($bin_name." - Version ".$bin_version."
 Copyright © 2013 Goulag PARKINSON.
 Author(s) : Goulag PARKINSON <goulag.parkinson@gmail.com>
-\"".$bin_name."\" is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or any later version.
-
-\"".$bin_name."\" is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with \"".$bin_name."\" . If not, see <http://www.gnu.org/licenses/>.");
+\"".$bin_name."\" is free software: you can redistribute it and/or modify it"
+." under the terms of the GNU General Public License as published by the Free"
+." Software Foundation, either version 3 of the License, or any later version."
+."
+\"".$bin_name."\" is distributed in the hope that it will be useful, but"
+." WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY"
+." or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License"
+." for more details.
+."
+."You should have received a copy of the GNU General Public License along"
+." with \"".$bin_name."\" . If not, see <http://www.gnu.org/licenses/>.");
 }
 
 function recurse_xml(&$simple_xml_element_dir, &$parent_dirpath,
-                     &$directory_array, &$file_array) {
+                     &$directory_array, &$file_array, $tree_total_files, &$notify) {
   $total_dirsize = 0;
   $total_filesize = 0;
 
@@ -152,19 +158,34 @@ function recurse_xml(&$simple_xml_element_dir, &$parent_dirpath,
     $file = new \pgh\File($filename, $filepath, $filesize,
     $filedatetime);
     array_push($file_array, $file);
+    if ($notify) $notify->tick();
     $file_counter++;
   }
+
+
   $directory->fs_file_counter = $file_counter;
   
   /*****************************************************************************
    * STEP 2 : Recurse by browsing sub directory
    * **************************************************************************/
   $sub_dir_counter = 0;
-  foreach ($simple_xml_element_dir->directory as $simple_xml_element_child_dir) {
-    $file_counter+=recurse_xml($simple_xml_element_child_dir,$dirpath, $directory_array, $file_array);
+  foreach ($simple_xml_element_dir->directory
+    as $simple_xml_element_child_dir) {
+    $file_counter+=recurse_xml($simple_xml_element_child_dir,
+      $dirpath, $directory_array, $file_array,$tree_total_files, $notify);
     $sub_dir_counter++;
   }
   $directory->fs_dir_counter = $sub_dir_counter;
 
   array_push($directory_array, $directory);
+}
+
+function processIsRunning($pid){
+  try{
+    $result = shell_exec(sprintf("ps %d", $pid));
+    if( count(preg_split("/\n/", $result)) > 2){
+      return true;
+    }
+  } catch(Exception $e){}
+  return false;
 }

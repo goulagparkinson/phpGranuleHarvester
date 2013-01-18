@@ -20,7 +20,7 @@
 
 *******************************************************************************/
 
-error_reporting(E_ALL);
+error_reporting(E_ERROR | E_USER_ERROR);
 ini_set('display_errors', 1);
 date_default_timezone_set('GMT');
 
@@ -28,6 +28,8 @@ $bin_name = "phpGranuleHarvester";
 $bin_version = "0.1alpha";
 $now_time = time();
 $tree_command = 'tree -X -s -D --dirsfirst --du --timefmt "%Y-%m-%d %H:%M:%S"';
+$stdout_piped = function_exists('posix_isatty') && !posix_isatty(STDOUT);
+$stderr_piped = function_exists('posix_isatty') && !posix_isatty(STDERR);
 
 $config_array = array(
   'start_time'       => $now_time,
@@ -35,7 +37,7 @@ $config_array = array(
   'output_dirname'   => 'pgh_'.strftime("%F_%Hh%Mm%Ss", $now_time),
   'verbose'          => false,
   'debug'            => false,
-  'cache_path'            => "pgh_cache.sqlite"
+  'cache_path'            => "cache.sqlite3"
 );
 
 require 'lib/cli/cli.php';
@@ -75,8 +77,13 @@ try {
   exit(1);
 }
 
-if ($arguments['debug']) $config_array['debug'] = true;
-if ($arguments['verbose']) $config_array['verbose'] = true;
+if ($arguments['debug']) {
+  $config_array['debug'] = true;
+  error_reporting(E_ALL);
+}
+if ($arguments['verbose']) {
+  $config_array['verbose'] = true;
+}
 if ($arguments['quiet']) {
   error_reporting(E_ERROR | E_USER_ERROR);
   $config_array['debug'] = false;
@@ -190,7 +197,7 @@ if (!count($config_array['regex_product'])) {
   exit(1);
 }
 
-\pgh\info("config_array = ".print_r($config_array, true));
+//\pgh\info("config_array = ".print_r($config_array, true));
 
 
 /*******************************************************************************
@@ -224,27 +231,71 @@ if (!$cache) {
 $directory_array = array();
 $file_array = array();
 
+\pgh\info("STEP 1 : I have to proceed ".count($input_directory_array)." input dir");
+
+$dir_index=1;
 foreach($input_directory_array as $input_dirname) {
+  \pgh\info("Start to proceed dir ".$dir_index."/".count($input_directory_array)." => ".$input_dirname);
+
   trigger_error("Tree processing for \"$input_dirname\"", E_USER_NOTICE);
+
   $tree_output_tmpfilename = tempnam(sys_get_temp_dir(), 'pgh_xml_');
   $command=$tree_command." ".$input_dirname." > ".$tree_output_tmpfilename;
-  \pgh\info("Unix tree command used is :\n\t".$command);
+  $command = $tree_command." ".$input_dirname;
+
   $exec_output = array();
   $exec_return_val = 0;
-  exec($command, $output, $return_val);
+  $notify = false;
+  if ($config_array['verbose']&& !$stdout_piped) {
+    $notify = new \cli\notify\Spinner('Executing "tree" command on this dir...waiting...',50);
+  }
+  $pid = exec(sprintf("%s > %s 2>&1 & echo $!", $command, $tree_output_tmpfilename), $output, $return_val)."\n";
+
+  while (\pgh\processIsRunning($pid)) {
+    for ($i = 0; $i <= 100; $i++) {
+      if ($notify) $notify->tick();
+      usleep(10000);
+    }
+  }
+  if ($notify) $notify->finish();
+  \pgh\info("Done ! Tree command is finished, starting to proceed the results");
+
   $tree_xml = new SimpleXMLElement(file_get_contents($tree_output_tmpfilename));
+
+  $tree_total_fs_size = (int)$tree_xml->report->size;
+  $tree_total_directories= (int)$tree_xml->report->directories;
+  $tree_total_files = (int)$tree_xml->report->files;
+
+  \pgh\info("Some info about this dir \"".$input_dirname."\":");
+  \pgh\info(" -> Total of sub dirs : ".$tree_total_directories
+         ."\n -> Total of files    : ".$tree_total_files
+         ."\n -> Total sum size    : ".formatBytes($tree_total_fs_size));
+         
+  $notify = new \cli\progress\Bar('STEP 2 : Importing results ', $tree_total_files);
   $base_path = dirname((string)$tree_xml->directory['name']);
   foreach ($tree_xml->directory as $simple_xml_element_dir) {
     \pgh\recurse_xml($simple_xml_element_dir,
 		$base_path,
 		$directory_array,
-		$file_array);
+		$file_array,$tree_total_files,$notify);
   }
+  $notify->finish();
+  \pgh\info("Done ! All the results are imported");
+
   unset($tree_xml);
   unlink($tree_output_tmpfilename);
+  $dir_index++;
+}
+
+$notify = false;
+if ($config_array['verbose']&& !$stdout_piped) {
+  $notify = new \cli\progress\Bar('STEP 3 : Extraction of metadata(s) into file',
+  count($file_array));
 }
 
 foreach($file_array as &$file) {
+  if ($notify) $notify->tick();
+
   if ($file->checkForIgnoreRegex($config_array['regex_ignore'])) {
     trigger_error("Ignoring ".$file->path, E_USER_NOTICE);
     continue;
@@ -259,6 +310,7 @@ foreach($file_array as &$file) {
     trigger_error("Unmatching ".$file->path, E_USER_WARNING);
   }
 }
+if ($notify) $notify->finish();
 
 $cache->update($file_array);
 

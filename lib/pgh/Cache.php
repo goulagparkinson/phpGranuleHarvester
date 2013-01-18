@@ -53,15 +53,22 @@ class Cache extends \SQLite3 {
   public function update(&$file_array) {
     global $now_time;
     $now = strftime("%F %T", $now_time);
-    $query = '';
-    foreach ($file_array as $file) {    
-      if ($query) $query.=",";
-      $query .= "('".$file->name
-      ."','".$file->path."','".$file->fs_total_size."','".$file->sha1_name
-      ."','".$file->sha1_path."','".$now."','".$now."','".$file->getProductId()
-      ."','".$file->start_datetime_str."','".$file->stop_datetime_str."')";
+    $stmt = parent::prepare("INSERT INTO file ('name','path','size','sha1_name','sha1_path','creation_datetime','last_modification_datetime','product_id','start_datetime','stop_datetime') VALUES (:name,:path,:size,:sha1_name,:sha1_path,:creation_datetime,:last_modification_datetime,:product_id,:start_datetime,:stop_datetime)");
+
+
+
+    foreach ($file_array as &$file) {    
+      $stmt->bindValue(':name', $file->name, SQLITE3_TEXT)."\n";
+      $stmt->bindValue(':path', $file->path, SQLITE3_TEXT);
+      $stmt->bindValue(':size', $file->fs_total_size, SQLITE3_INTEGER);
+      $stmt->bindValue(':sha1_name', $file->sha1_name, SQLITE3_TEXT);
+      $stmt->bindValue(':sha1_path', $file->sha1_path, SQLITE3_TEXT);
+      $stmt->bindValue(':creation_datetime', $now, SQLITE3_TEXT);
+      $stmt->bindValue(':last_modification_datetime', $now, SQLITE3_TEXT);
+      $stmt->bindValue(':product_id', $file->getProductId(), SQLITE3_TEXT);
+      $stmt->bindValue(':start_datetime', $file->start_datetime_str, SQLITE3_TEXT);
+      $stmt->bindValue(':stop_datetime', $file->stop_datetime_str, SQLITE3_TEXT);
+      $result = $stmt->execute();
     }
-    $query = "INSERT INTO file ('name','path','size','sha1_name','sha1_path','creation_datetime','last_modification_datetime','product_id','start_datetime','stop_datetime') VALUES ".$query;
-    parent::exec($query);
   }
 }

@@ -28,6 +28,7 @@ class File {
 	public $fs_total_size = 0;
 	public $sha1_name;
 	public $sha1_path;
+  public $md5sum = 0;
   public $last_modification_time;
   protected $_ignore_by_regex = false;
   protected $_product_id;
@@ -65,6 +66,7 @@ class File {
     $functionHandlerName = "datetime_handler_".str_replace(array('-','.'),"_",$this->_product_id);
     if ($functionHandlerName($this)) {
       $this->metadataExtracted = true;
+      $this->md5sum = md5_file($this->path);
       return true;
     } else return false;
   }
