@@ -30,6 +30,8 @@ $now_time = time();
 $tree_command = 'tree -X -s -D --dirsfirst --du --timefmt "%Y-%m-%d %H:%M:%S"';
 $stdout_piped = function_exists('posix_isatty') && !posix_isatty(STDOUT);
 $stderr_piped = function_exists('posix_isatty') && !posix_isatty(STDERR);
+$ini_filepath = "phpGranuleHarvester.ini";
+$db_store_id = 1;
 
 $config_array = array(
   'start_time'       => $now_time,
@@ -37,7 +39,9 @@ $config_array = array(
   'output_dirname'   => 'pgh_'.strftime("%F_%Hh%Mm%Ss", $now_time),
   'verbose'          => false,
   'debug'            => false,
-  'cache_path'            => "cache.sqlite3"
+  'ini_filepath'     => $ini_filepath,
+  'db_store_id'      => $db_store_id,
+  'cache_path'       => "cache.sqlite3"
 );
 
 require 'lib/cli/cli.php';
@@ -69,6 +73,9 @@ $arguments->addOption(array('n'), array(
 $arguments->addOption(array('c'), array(
 	'default'     => $config_array['cache_path'],
 	'description' => 'Set the sqlite db cache path'));
+$arguments->addOption(array('s'), array(
+	'default'     => $config_array['db_store_id'],
+	'description' => 'Set the dbstore_id as defined in  db cache path'));
 
 try {
   $arguments->parse();
@@ -154,37 +161,63 @@ if ($arguments['o']){
 }
 $config_array['output_dirpath'] = $config_array['output_base_path'].'/'.$config_array['output_dirname'];
 
-\pgh\info("config['output_dirpath'] = ".$config_array['output_dirpath']);
 
 /*******************************************************************************
  * Ini processing
  * ****************************************************************************/
 
-$ini_array = parse_ini_file("phpGranuleHarvester.ini", true);
+$ini_array = parse_ini_file($config_array['ini_filepath'], true);
 
-if (!array_key_exists('regexToIgnore',$ini_array)) {
-  trigger_error("Unable to find 'regexToIgnore' key in the .ini file", E_USER_ERROR);
+if (!array_key_exists('general',$ini_array)) {
+  trigger_error("Unable to find 'global' key in the .ini file", E_USER_ERROR);
   exit(1);
 }
-if (!array_key_exists('products',$ini_array) || !is_array($ini_array['products'])) {
-  trigger_error("Unable to find 'products' array key in the .ini file", E_USER_ERROR);
+
+if (!array_key_exists('regexToIgnore',$ini_array['general'])) {
+  trigger_error("Unable to find 'general.regexToIgnore' key in the .ini file", E_USER_ERROR);
   exit(1);
 }
-$config_array['regex_ignore'] = $ini_array['regexToIgnore'];
+if (!array_key_exists('productArray',$ini_array['general']) || !is_array($ini_array['general']['productArray'])) {
+  trigger_error("Unable to find 'general.productArray' array key in the .ini file", E_USER_ERROR);
+  exit(1);
+}
+if (!array_key_exists('dbstoreArray',$ini_array['general']) || !is_array($ini_array['general']['dbstoreArray'])) {
+  trigger_error("Unable to find 'general.dbstoreArray' array key in the .ini file", E_USER_ERROR);
+  exit(1);
+}
+
+if (!array_key_exists($config_array['db_store_id'],$ini_array['general']['dbstoreArray']) ||
+    !is_array($ini_array["dbstore:".$ini_array['general']['dbstoreArray'][$config_array['db_store_id']]])) {
+  trigger_error("Unable to find 'dbstore:".$ini_array['general']['dbstoreArray'][$config_array['db_store_id']]."' section in the .ini file", E_USER_ERROR);
+  exit(1);
+}
+
+$dbstore_section = "dbstore:".$ini_array['general']['dbstoreArray'][$config_array['db_store_id']];
+
+if (!array_key_exists('name',$ini_array[$dbstore_section]) ||
+  !array_key_exists('dsn',$ini_array[$dbstore_section]) ||
+  !array_key_exists('username',$ini_array[$dbstore_section]) ||
+  !array_key_exists('password',$ini_array[$dbstore_section])) {
+  trigger_error("Your dbstore_section section is incomplete", E_USER_ERROR);
+  exit(1);
+}
+
+$config_array['regex_ignore'] = $ini_array['general']['regexToIgnore'];
 $config_array['regex_product'] = array();
 $config_array['regex_datetime'] = array();
 
-foreach($ini_array['products'] as $product_id) {
-  if (array_key_exists($product_id, $ini_array)) {
-    if (array_key_exists('productRegex', $ini_array[$product_id])) {
-      $product_regex = $ini_array[$product_id]['productRegex'];
+foreach($ini_array['general']['productArray'] as $product_id) {
+  $product_key = "product:".$product_id;
+  if (array_key_exists($product_key, $ini_array)) {
+    if (array_key_exists('productRegex', $ini_array[$product_key])) {
+      $product_regex = $ini_array[$product_key]['productRegex'];
       $config_array['regex_product'][$product_regex] = $product_id;
-      if (array_key_exists('datetimeRegex', $ini_array[$product_id])) {
+      if (array_key_exists('datetimeRegex', $ini_array[$product_key])) {
         $config_array['regex_datetime'][$product_id] =
-          $ini_array[$product_id]['datetimeRegex'];
+          $ini_array[$product_key]['datetimeRegex'];
       }
     } else {
-      trigger_error("Unable to find key 'productRegex' in [$product_id] section in the .ini file", E_USER_WARNING);
+      trigger_error("Unable to find key 'productRegex' in [$product_key] section in the .ini file", E_USER_WARNING);
       continue;
     }
   } else {
@@ -197,8 +230,32 @@ if (!count($config_array['regex_product'])) {
   exit(1);
 }
 
-//\pgh\info("config_array = ".print_r($config_array, true));
+/*******************************************************************************
+ * DbStore checking
+ * ****************************************************************************/
+ 
+$dbstore_section = "dbstore:".$ini_array['general']['dbstoreArray'][$config_array['db_store_id']];
 
+if (!array_key_exists('name',$ini_array[$dbstore_section]) ||
+  !array_key_exists('dsn',$ini_array[$dbstore_section]) ||
+  !array_key_exists('username',$ini_array[$dbstore_section]) ||
+  !array_key_exists('password',$ini_array[$dbstore_section])) {
+  trigger_error("Your dbstore_section section is incomplete", E_USER_ERROR);
+  exit(1);
+}
+
+$dbstore = false;
+try {
+  $dbstore = new \pgh\DbStore(
+    $ini_array[$dbstore_section]['dsn'],
+    $ini_array[$dbstore_section]['username'],
+    $ini_array[$dbstore_section]['password']
+  );
+} catch (Exception $e) {
+  trigger_error("Unable to create a valid dbstore with you config for $dbstore_section", E_USER_ERROR);
+  trigger_error($e->getMessage(), E_USER_ERROR);
+  exit(1);
+}
 
 /*******************************************************************************
  * Cache checking
@@ -207,6 +264,8 @@ if (!count($config_array['regex_product'])) {
 if ($arguments['c']){
   $config_array['cache_path'] = $arguments['c'];
 }
+
+/*
 
 if (!is_file($config_array['cache_path'])) {
   $cache = \pgh\Cache::create($config_array['cache_path']);
@@ -223,6 +282,8 @@ if (!$cache) {
       E_USER_ERROR);
   exit(1);
 }
+
+*/
 
 /*******************************************************************************
  * Tree processing
@@ -271,7 +332,10 @@ foreach($input_directory_array as $input_dirname) {
          ."\n -> Total of files    : ".$tree_total_files
          ."\n -> Total sum size    : ".formatBytes($tree_total_fs_size));
          
-  $notify = new \cli\progress\Bar('STEP 2 : Importing results ', $tree_total_files);
+  $notify = false;
+  if ($config_array['verbose']&& !$stdout_piped) {
+    $notify = new \cli\progress\Bar('STEP 2 : Importing results ', $tree_total_files);
+  }
   $base_path = dirname((string)$tree_xml->directory['name']);
   foreach ($tree_xml->directory as $simple_xml_element_dir) {
     \pgh\recurse_xml($simple_xml_element_dir,
@@ -279,7 +343,7 @@ foreach($input_directory_array as $input_dirname) {
 		$directory_array,
 		$file_array,$tree_total_files,$notify);
   }
-  $notify->finish();
+  if ($notify) $notify->finish();
   \pgh\info("Done ! All the results are imported");
 
   unset($tree_xml);
@@ -303,6 +367,7 @@ foreach($file_array as &$file) {
   if ($file->checkForProductRegex($config_array['regex_product'])) {
     if ($file->extractMetadata()) {
       \pgh\success("Extract ".$file->getProductId()." for ".$file->path);
+      $dbstore->update_file($file);
     } else {
       trigger_error("Matching ok but extract error in ".$file->path, E_USER_WARNING);
     }
@@ -312,7 +377,7 @@ foreach($file_array as &$file) {
 }
 if ($notify) $notify->finish();
 
-$cache->update($file_array);
+//$cache->update($file_array);
 
 exit(0);
 ?>

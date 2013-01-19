@@ -25,10 +25,11 @@ namespace pgh;
 class File {
 	public $name;
 	public $path;
-	public $fs_total_size = 0;
+	public $size = 0;
 	public $sha1_name;
 	public $sha1_path;
   public $md5sum = 0;
+  public $status = "UNKNOW";
   public $last_modification_time;
   protected $_ignore_by_regex = false;
   protected $_product_id;
@@ -40,7 +41,7 @@ class File {
     $size, $last_modification_time) {
 		$this->name = $name;
 		$this->path = $path;
-		$this->fs_total_size = $size;
+		$this->size = $size;
     $this->last_modification_time = $last_modification_time;
     $this->sha1_name = sha1($this->name);
     $this->sha1_path = sha1($this->path);
@@ -49,6 +50,7 @@ class File {
   public function checkForIgnoreRegex(&$regex) {
     if (preg_match("/".$regex."/",$this->path, $matches)) {
       $this->_ignore_by_regex = true;
+      $this->status = "IGNORED";
       return true;
     } else return false;
   }
@@ -56,9 +58,11 @@ class File {
     foreach($regex_array as $regex => &$product_id) {
       if (preg_match("/".$regex."/",$this->name, $matches)) {
         $this->_product_id = $product_id;
+        $this->status = "READY TO PROCEED";
         return true;
       }
     }
+    $this->status = "PRODUCT FAILED";
     return false;
   }
 
@@ -67,8 +71,12 @@ class File {
     if ($functionHandlerName($this)) {
       $this->metadataExtracted = true;
       $this->md5sum = md5_file($this->path);
+      $this->status = "EXTRACTED";
       return true;
-    } else return false;
+    } else {
+      $this->status = "EXTRACT FAILED";
+      return false;
+    }
   }
 	static public function extract_datetime_array_from_filepath($file, &$dt) {
     global $config_array;
