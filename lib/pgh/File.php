@@ -62,7 +62,7 @@ class File {
         return true;
       }
     }
-    $this->status = "PRODUCT FAILED";
+    $this->status = "NO PRODUCT REGEX";
     return false;
   }
 

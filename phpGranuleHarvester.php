@@ -35,14 +35,14 @@ $db_store_id = 1;
 
 $config_array = array(
   'start_time'       => $now_time,
-  'output_base_path' => sys_get_temp_dir(),
-  'output_dirname'   => 'pgh_'.strftime("%F_%Hh%Mm%Ss", $now_time),
+  'output_dirpath'   => tempnam(sys_get_temp_dir(), 'pgh_'),
   'verbose'          => false,
   'debug'            => false,
   'ini_filepath'     => $ini_filepath,
   'db_store_id'      => $db_store_id,
   'cache_path'       => "cache.sqlite3"
 );
+unlink($config_array['output_dirpath']);
 
 require 'lib/cli/cli.php';
 \cli\register_autoload();
@@ -65,11 +65,8 @@ $arguments->addFlag(array('help', 'h'), 'Show this help screen');
 $arguments->addOption(array('d'), array(
 	'description' => 'Set the input directory to browse'));
 $arguments->addOption(array('o'), array(
-	'default'     => $config_array['output_base_path'],
-	'description' => 'Set the output base directory to store results'));
-$arguments->addOption(array('n'), array(
-	'default'     => $config_array['output_dirname'],
-	'description' => 'Set the output directory name to store results'));
+	'default'     => $config_array['output_dirpath'],
+	'description' => 'Set the output directory path to store results'));
 $arguments->addOption(array('c'), array(
 	'default'     => $config_array['cache_path'],
 	'description' => 'Set the sqlite db cache path'));
@@ -139,27 +136,19 @@ if (!count($input_directory_array)) {
  * Output checking
  * ****************************************************************************/
 
-if ($arguments['n']){
-  $config_array['output_dirname'] = $arguments['n'];
-}
 if ($arguments['o']){
-  if (!is_dir($arguments['o'])) {
-    trigger_error("Output base directory is not a real directory", E_USER_ERROR);
-    exit(1);
-  }
-  if (is_dir($arguments['o']."/".$config_array['output_dirname'])) {
+  if (is_dir($arguments['o'])) {
     trigger_error("Output directory already exist", E_USER_WARNING);
   } else {
-    if (!mkdir($arguments['o']."/".$config_array['output_dirname'])) {
-      trigger_error("Unable to create the output directory in this base directory", E_USER_ERROR);
+    if (!mkdir($arguments['o'])) {
+      trigger_error("Unable to create the output directory", E_USER_ERROR);
       exit(1);
     } else {
-      rmdir($arguments['o'].'/'.$config_array['output_dirname']);
+      rmdir($arguments['o']);
     }
   }
-  $config_array['output_base_path'] = $arguments['o'];
+  $config_array['output_dirpath'] = $arguments['o'];
 }
-$config_array['output_dirpath'] = $config_array['output_base_path'].'/'.$config_array['output_dirname'];
 
 
 /*******************************************************************************
@@ -292,11 +281,15 @@ if (!$cache) {
 $directory_array = array();
 $file_array = array();
 
+@mkdir($config_array['output_dirpath']);
+
+
+\pgh\info("output_dirpath is : ".$config_array['output_dirpath']);
 \pgh\info("STEP 1 : I have to proceed ".count($input_directory_array)." input dir");
 
 $dir_index=1;
 foreach($input_directory_array as $input_dirname) {
-  \pgh\info("Start to proceed dir ".$dir_index."/".count($input_directory_array)." => ".$input_dirname);
+  \pgh\info("STEP 1.".$dir_index." : Start to proceed dir ".$dir_index."/".count($input_directory_array)." => ".$input_dirname);
 
   trigger_error("Tree processing for \"$input_dirname\"", E_USER_NOTICE);
 
@@ -362,18 +355,19 @@ foreach($file_array as &$file) {
 
   if ($file->checkForIgnoreRegex($config_array['regex_ignore'])) {
     trigger_error("Ignoring ".$file->path, E_USER_NOTICE);
+    $dbstore->update_file($file);
     continue;
   }
   if ($file->checkForProductRegex($config_array['regex_product'])) {
     if ($file->extractMetadata()) {
       \pgh\success("Extract ".$file->getProductId()." for ".$file->path);
-      $dbstore->update_file($file);
     } else {
       trigger_error("Matching ok but extract error in ".$file->path, E_USER_WARNING);
     }
   } else {
     trigger_error("Unmatching ".$file->path, E_USER_WARNING);
   }
+  $dbstore->update_file($file);
 }
 if ($notify) $notify->finish();
 
