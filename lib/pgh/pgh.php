@@ -96,6 +96,13 @@ function error_handler($errno, $errstr, $errfile, $errline) {
   return true;
 }
 
+function debug( $msg = '' ) {
+  global $config_array;
+  if ($config_array['debug']) {
+    \cli\line("[DEBUG] ".$msg);
+  }
+}
+
 function info( $msg = '' ) {
   global $config_array;
   if ($config_array['verbose']) {

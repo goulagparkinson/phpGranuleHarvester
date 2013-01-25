@@ -91,7 +91,9 @@ function trigger_success($msg) {
     echo $msg."\n";
   }
 }
-function debug($msg) {
+
+/*
+ * function debug($msg) {
   global $is_piped;
   global $option_debug;
   if (!$option_debug) return;
@@ -103,7 +105,7 @@ function debug($msg) {
     echo $msg;
   }
 }
-
+*/
 function recurse_xml(&$simple_xml_element_dir, &$parent_dirpath,
                      &$directory_array, &$file_array) {
   $total_dirsize = 0;

@@ -28,7 +28,8 @@
  * section, a sort of str_replace(array('-','.'),"_",$product_id) is
  * done !!!
  **********************************************************************/
-  
+use pgh;
+
 /***********************************************************************
  * AQUARIUS_L3_SSS_SMI_7DAY => AQUARIUS_L3_SSS_SMI_7DAY
  **********************************************************************/
@@ -258,8 +259,8 @@ function datetime_handler_IFR_L4_SSTfnd_ODYSSEA_MED_002(&$file) {
 function datetime_handler_JPL_L4UHfnd_GLOB_MUR(&$file) {
   bunzip_dataset_partial($file->path,$nc_filename,8192);
   ncdump_xml($nc_filename, $xml_filename);
-  //debug("[DEBUG] nc_filename = $nc_filename\n");
-  //debug("[DEBUG] xml_filename = $xml_filename\n");
+  //pgh\debug("[DEBUG] nc_filename = $nc_filename");
+  //pgh\debug("[DEBUG] xml_filename = $xml_filename");
 
   $xml = new SimpleXMLElement(str_replace('xmlns=', 'ns=', file_get_contents($xml_filename)));
   unlink($nc_filename);
@@ -284,7 +285,7 @@ function datetime_handler_JPL_L4UHfnd_GLOB_MUR(&$file) {
  * JPL_OUROCEAN-L4UHfnd-GLOB-G1SST => JPL_OUROCEAN_L4UHfnd_GLOB_G1SST
  **********************************************************************/
 function datetime_handler_JPL_OUROCEAN_L4UHfnd_GLOB_G1SST(&$file) {
-  datetime_handler_JPL_L4UHfnd_GLOB_MUR($file);
+  return datetime_handler_JPL_L4UHfnd_GLOB_MUR($file);
 }
 
 /***********************************************************************
