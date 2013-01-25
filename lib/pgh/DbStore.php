@@ -36,7 +36,7 @@ class DbStore {
     $stmt = self::$db->query("SELECT * FROM `files` WHERE `sha1_path` = '".$file->sha1_path."';");
     if ($stmt->rowCount()) {
       //Need to merge;
-      $query= "UPDATE  `files` SET  `status` =  '".$file->status."', `update_datetime` =  '".$now."' WHERE  `files`.`sha1_path` =  '".$file->sha1_path."';";
+      $query= "UPDATE  `files` SET  `status` =  '".$file->status."', `update_datetime` =  '".$now."', `start_datetime` = '".$file->start_datetime_str."', `stop_datetime` = '".$file->stop_datetime_str."' WHERE  `files`.`sha1_path` =  '".$file->sha1_path."';";
       if (!self::$db->exec($query)) {
         echo "\nPDO::errorInfo():\n";
         print_r(self::$db->errorInfo());

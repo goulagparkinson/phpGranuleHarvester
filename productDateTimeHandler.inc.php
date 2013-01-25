@@ -239,7 +239,7 @@ function datetime_handler_IFR_L4_SSTfnd_ODYSSEA_GLOB_010(&$file) {
 
   $start_datetime_str = (string)$xml->xpath('/netcdf/attribute[@name="start_time"]')[0]['value'];
   $start_datetime_str = strftime("%F %T",strtotime ($start_datetime_str));
-  $stop_datetime_str = (string)$xml->xpath('/netcdf/attribute[@name="start_time"]')[0]['value'];
+  $stop_datetime_str = (string)$xml->xpath('/netcdf/attribute[@name="stop_time"]')[0]['value'];
   $stop_datetime_str = strftime("%F %T",strtotime ($stop_datetime_str));
 
   $file->setDatetimeInterval($start_datetime_str,$stop_datetime_str);

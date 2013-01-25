@@ -229,7 +229,7 @@ $product_fail_array = array(
   'product_fail_list' => array()
 );
 
-$query = "SELECT * FROM `files`";
+$query = "SELECT * FROM `files` WHERE start_datetime != '1970-01-01 00:00:00'";
 
 foreach  ($db->query($query) as $row) {
   $product_id = $row['product_id'];
@@ -262,15 +262,22 @@ foreach  ($db->query($query) as $row) {
       'extraction_fail_size' => 0,
       'extraction_fail_list' => array(),
       'start_datetime' => 100000,
-      'stop_datetime' => 0
+      'stop_datetime' => 0,
+      'product_timespan' => 0,
     );
   }
   if ($status == "EXTRACTED") {
+      $start_datetime_str = $row['start_datetime'];
+      $stop_datetime_str = $row['stop_datetime'];
       $extraction_array['extraction_count']++;
       $product_array[$product_id]['extraction_count']++;
       $extraction_array['extraction_size']+=$size;
       $product_array[$product_id]['extraction_size']+=$size;
-      $product_array[$product_id]['extraction_list'][$sha1_path] = array('name' => $name, 'path' => $path, 'sha1_path' => $sha1_path, 'size' => $size, 'insert_datetime' => $insert_datetime, 'update_datetime' => $update_datetime);
+      $product_array[$product_id]['extraction_list'][$start_datetime_str] = array('name' => $name, 'path' => $path, 'sha1_path' => $sha1_path, 'size' => $size, 'insert_datetime' => $insert_datetime, 'update_datetime' => $update_datetime, 'start_datetime' => $start_datetime_str, 'stop_datetime' => $stop_datetime_str);
+      $product_array[$product_id]['product_timespan'] += strtotime($stop_datetime_str)-strtotime($start_datetime_str);
+      $product_array[$product_id]['start_datetime'] = min($product_array[$product_id]['start_datetime'], $start_datetime_str);
+      $product_array[$product_id]['stop_datetime'] = max($product_array[$product_id]['stop_datetime'], $stop_datetime_str);
+
   } else if ($status == "EXTRACT FAILED") {
       $extraction_array['extraction_fail_count']++;
       $product_array[$product_id]['extraction_fail_count']++;
@@ -281,6 +288,60 @@ foreach  ($db->query($query) as $row) {
     die("STRANGE STATUS CODE!!! $status");
   }
 }
+
+/*
+$product_count = count($product_array);
+$product_index = 1;
+foreach($product_array as $product_id => &$product_info) {
+  $avg_timespan = round($product_info['product_timespan'] / $product_info['extraction_count']);
+  $product_interval_array = array();
+  echo "Product ".sprintf("%2d", $product_index)."/$product_count : $product_id\n";
+  echo " timespan = ".$avg_timespan."secs\n";
+  ksort($product_info['extraction_list']);
+  $interval_index = 0;
+  foreach($product_info['extraction_list'] as $start_datetime_str => &$file_info) {
+    $start_datetime_str = $file_info['start_datetime'];
+    $start_datetime = strtotime($start_datetime_str);
+    $stop_datetime_str = $file_info['stop_datetime'];
+    $stop_datetime = strtotime($stop_datetime_str);
+    //echo "From ".$start_datetime_str." To ".$stop_datetime_str."\n";
+    if (!count($product_interval_array)) {
+      $product_interval_array[$interval_index] = array(
+        'start_datetime_str' => $start_datetime_str,
+        'start_datetime' => $start_datetime,
+        'stop_datetime_str' => $stop_datetime_str,
+        'stop_datetime' => $stop_datetime,
+        'count' => 1
+        );
+       continue;
+    }
+
+    $stop_datetime_interval = $product_interval_array[$interval_index]['stop_datetime'];
+    if ($start_datetime > ($stop_datetime_interval+$avg_timespan/2)) {
+//      echo "OLD stop_datetime_str = ".$product_interval_array[$interval_index]['stop_datetime_str']."\n";
+//      echo "NEW stop_datetime_str = ".$stop_datetime_str."\n";
+//      echo "\n\n";
+      
+      $interval_index++;
+      $product_interval_array[$interval_index] = array(
+        'start_datetime_str' => $start_datetime_str,
+        'start_datetime' => $start_datetime,
+        'stop_datetime_str' => $stop_datetime_str,
+        'stop_datetime' => $stop_datetime,
+        'count' => 1
+        );      
+    } else {
+      $product_interval_array[$interval_index]['stop_datetime'] = $stop_datetime;
+      $product_interval_array[$interval_index]['stop_datetime_str'] = $stop_datetime_str;
+      $product_interval_array[$interval_index]['count']++;
+    }
+
+  }
+  print_r($product_interval_array);
+  $product_index++;
+}
+*/
+
 ksort($product_array);
 
 $product_count = count($product_array);
@@ -291,6 +352,9 @@ foreach($product_array as $product_id => &$product_info) {
   $product_info['extraction_avg_size'] = round($product_info['extraction_size']/$product_info['extraction_count']);
   echo "  Extracted total size  = ".formatBytes($product_info['extraction_size'])." (".$product_info['extraction_size']." B)\n";
   echo "  Extracted avg   size  = ".formatBytes($product_info['extraction_avg_size'])." (".$product_info['extraction_avg_size']." B)\n";
+  echo "  Extracted date from   = ".$product_info['start_datetime']."\n";
+  echo "  Extracted date to     = ".$product_info['stop_datetime']."\n";
+  
   if ($product_info['extraction_fail_count']) {
     echo "\n  Warning ! Some extraction failed :\n";
     echo "    Fail rate = ".round(100*$product_info['extraction_fail_count']/($product_info['extraction_fail_count']+$product_info['extraction_count']))."%\n";
@@ -298,9 +362,11 @@ foreach($product_array as $product_id => &$product_info) {
     $product_info['extraction_fail_avg_size'] = round($product_info['extraction_fail_size']/$product_info['extraction_fail_count']);
     echo "    Fail  total size  = ".formatBytes($product_info['extraction_fail_size'])." (".$product_info['extraction_fail_size']." B)\n";
     echo "    Fail  avg   size  = ".formatBytes($product_info['extraction_fail_avg_size'])." (".$product_info['extraction_fail_avg_size']." B)\n";
-    echo "    Fail file list (size;path):\n";
-    foreach($product_info['extraction_fail_list'] as $sha1_path => &$file_info) {
-    echo "      ".$file_info['size'].";".$file_info['path']."\n";
+    if ($config_array['debug']) {
+      echo "    Fail file list (size;path):\n";
+      foreach($product_info['extraction_fail_list'] as $sha1_path => &$file_info) {
+        echo "      ".$file_info['size'].";".$file_info['path']."\n";
+      }
     }
   }
   echo "\n\n";
